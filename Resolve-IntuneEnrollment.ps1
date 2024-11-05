@@ -77,11 +77,11 @@
     }
 
     function Clear-CurrentEnrollmentId {
-        $CurrentEnrollmentId = $null; $CurrentEnrollmentId = Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId
+        $CurrentEnrollmentId = $null; $CurrentEnrollmentId = Get-CurrentEnrollmentId
         if ( $null -ne $CurrentEnrollmentId ) { Remove-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId -Force }
     }
 
-    function Get-EnrollmentIds {
+    function Get-EnrollmentIdsFromFolderFromFolder {
         param ( [Switch]$IncludePath )
         $ScheduledTaskObject = New-Object -ComObject Schedule.Service
         $ScheduledTaskObject.Connect()
@@ -102,7 +102,7 @@
         $EnrollmentIds = @()
         $CurrentEnrollmentId = Get-CurrentEnrollmentId
         if ( $null -ne $CurrentEnrollmentId ) { $EnrollmentIds += $CurrentEnrollmentId }
-        $Ids = Get-EnrollmentIds
+        $Ids = Get-EnrollmentIdsFromFolder
         if ( $null -ne $Folders ) {
             foreach ( $Id in $Ids ) {
                 if ( $CurrentEnrollmentId -ne $Id ) { $EnrollmentIds += $Id }
@@ -162,7 +162,7 @@
         param (
             $MDMTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
         )
-        $EnrollmentGUIDs = Get-EnrollmentIds
+        $EnrollmentGUIDs = Get-EnrollmentIdsFromFolder
         $Name = Get-MDMTaskName
         if ( [string]::IsNullOrEmpty($Name) ) { $Name = $MDMTaskName }
         $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -202,7 +202,7 @@
     
     # Set Registries for MDM Enrollment
 
-    function Prepare-EnrollmentRegistries {
+    function Set-RegistryForEnrollment {
         param ( $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa" ) <# TODO: $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa" #>
 
         New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\' -Name MDM -Force -ErrorAction SilentlyContinue
@@ -263,7 +263,7 @@
 
                 Write-Host -Object "STATUS: CurrentEnrollmentId 가 없습니다. MDM Scheduled Task 생성:`n" -ForegroundColor Yellow
 
-                Prepare-EnrollmentRegistries
+                Set-RegistryForEnrollment
                 Write-StatusLog -Resource HDO:MDM:EnrollmentRegistries -Status Create
                 Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
 
@@ -284,7 +284,7 @@
                 Write-StatusLog -Resource HDO:MDM:EnrollmentTasks -Status Clear
                 Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
 
-                Prepare-EnrollmentRegistries
+                Set-RegistryForEnrollment
                 Write-StatusLog -Resource HDO:MDM:EnrollmentRegistries -Status Prepare
                 Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
 
@@ -301,6 +301,7 @@
         Write-Host -Object "`t1. 관리자 권한으로 명령프롬프트(cmd)를 실행하고 ""dsregcmd /leave"" 명령을 실행하고 컴퓨터를 재시작합니다." -ForegroundColor Cyan
         Write-Host -Object "`t2. 관리자 권한으로 명령프롬프트(cmd)를 실행하고 ""dsregcmd /join /debug"" 명령을 실행하고 컴퓨터를 재시작합니다." -ForegroundColor Cyan
         Write-StatusLog -Resource ADO:AzureADJoin -Status NO
+        Start-ScheduledTask -TaskName '\Microsoft\Windows\Workplace Join\Automatic-Device-Join'
     }
 
     Download-PSTools
