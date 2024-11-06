@@ -7,17 +7,17 @@
     # Download PSTools
 
     function Save-Tools {
-        New-Item -Path C:\ -Name Scripts -ItemType Directory -Force | Out-Null
-        if ( ! (Test-Path -Path C:\Scripts\PSTools.zip) ) {
-            Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/PSTools.zip' -OutFile C:\Scripts\PSTools.zip
+        New-Item -Path C:\Temp -Name Intune -ItemType Directory -Force | Out-Null
+        if ( ! (Test-Path -Path C:\Temp\Intune\PSTools.zip) ) {
+            Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/PSTools.zip' -OutFile C:\Temp\Intune\PSTools.zip
         }
-        Expand-Archive -Path C:\Scripts\PSTools.zip -DestinationPath C:\Scripts\PSTools
+        Expand-Archive -Path C:\Temp\Intune\PSTools.zip -DestinationPath C:\Temp\Intune\PSTools -Force
         <#
-        if ( ! (Test-Path -Path C:\Scripts\Define-IntuneEnrollFunctions.ps1) ) {
-            Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kj-park/Scripts/refs/heads/main/Define-IntuneEnrollFunctions.ps1' -OutFile C:\Scripts\Define-IntuneEnrollFunctions.ps1
+        if ( ! (Test-Path -Path C:\Temp\Intune\Define-IntuneEnrollFunctions.ps1) ) {
+            Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kj-park/Scripts/refs/heads/main/Define-IntuneEnrollFunctions.ps1' -OutFile C:\Temp\Intune\Define-IntuneEnrollFunctions.ps1
         }
             #>
-        Write-Host "# Downloaded the PSTools and Intune Enrollment Functions Script file to C:\Scripts" -ForegroundColor Yellow
+        Write-Host "# Downloaded the PSTools and Intune Enrollment Functions Script file to C:\Temp\Intune" -ForegroundColor Yellow
     }
   
 
@@ -58,9 +58,9 @@
     }
 
     function Start-MDMScheduledTask {
-        Start-ScheduledTask -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD'
+        Start-ScheduledTask -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD' -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 10
-        $LastTaskResult = (Get-ScheduledTaskInfo -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD').LastTaskResult.ToString("x")
+        $LastTaskResult = (Get-ScheduledTaskInfo -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD' -ErrorAction SilentlyContinue).LastTaskResult.ToString("x")
         Write-Host -Object "`t> MDM Scheduled Task : Last Task Result returned: $LastTaskResult" -ForegroundColor Red
     }
 
@@ -158,7 +158,6 @@
         param (
             $MDMTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
         )
-        $EnrollmentGUIDs = Get-EnrollmentIdsFromFolder
         $Name = Get-MDMTask
         if ( [string]::IsNullOrEmpty($Name) ) { $Name = $MDMTaskName }
         $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -293,14 +292,14 @@
     # Download Related Tool
 
     Save-Tools
-    . C:\Scripts\Define-IntuneEnrollFunctions.ps1
+    #. C:\Temp\Intune\Define-IntuneEnrollFunctions.ps1
 
 
     # Dignosing Azure AD Joined
 
-    New-Item -Path C:\Scripts -Name Logs -ItemType Directory -Force | Out-Null
+    New-Item -Path C:\Temp\Intune -Name Logs -ItemType Directory -Force | Out-Null
 
-    C:\Windows\system32\dsregcmd.exe /status /debug | Out-File -FilePath C:\Scripts\Logs\dsregcmd-status-before.log -Force
+    C:\Windows\system32\dsregcmd.exe /status /debug | Out-File -FilePath C:\Temp\Intune\Logs\dsregcmd-status-before.log -Force
 
     $AzureAdJoined  = if ( (Dsregcmd.exe /status | Select-String "AzureAdJoined : " | Select-Object -ExpandProperty Line) -match "YES" ) { $true } else { $false }
     # $DomainJoined  = if ( (Dsregcmd.exe /status | Select-String "DomainJoined : " | Select-Object -ExpandProperty Line) -match "YES" ) { $true } else { $false }    
@@ -309,60 +308,60 @@
 
     $QueryXPath = Build-FilterXPath -SearchString "(EventID=75)"
     $MDMEnvent = $null; $MDMEnvent = Get-WinEvent -LogName $LogAdmin -FilterXPath $QueryXPath -MaxEvents 1 -ErrorAction SilentlyContinue
-    if ( $null -eq $MDMEnvent ) { $Enrolled = $false } else { $Enrolled = $true; "Success" | Out-File -FilePath C:\Scripts\Logs\mdm-enrolled.log -Force }
+    if ( $null -eq $MDMEnvent ) { $Enrolled = $false } else { $Enrolled = $true; "Success" | Out-File -FilePath C:\Temp\Intune\Logs\mdm-enrolled.log -Force }
 
     if ( $AzureAdJoined ) {
 
-        "[START] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))" | Out-File -FilePath C:\Scripts\Logs\Enrollments.log -Force
+        "[START] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))" | Out-File -FilePath C:\Temp\Intune\Logs\Enrollments.log -Force
         if ( $Enrolled ) {
             Write-Host -Object "STATUS: 정상적으로 Intune Enrollment 작업이 완료되었습니다.`n" -ForegroundColor Cyan
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "STATUS: 정상적으로 Intune Enrollment 작업이 완료되었습니다."
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "STATUS: 정상적으로 Intune Enrollment 작업이 완료되었습니다."
         }
         else {
             Write-Host -Object "STATUS: Enrollment 관련 Registries 및 Scheduled Tasks Clear 작업:`n" -ForegroundColor Cyan
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "STATUS : Enrollment 관련 Registries 및 Scheduled Tasks Clear 작업:"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "STATUS : Enrollment 관련 Registries 및 Scheduled Tasks Clear 작업:"
 
             Clear-EnrollmentRegistry
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "`tTASK : 01 : Clear-EnrollmentRegistry"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "`tTASK : 01 : Clear-EnrollmentRegistry"
             Write-StatusLog -Resource HDO:MDM:Reset -Status "01 : Clear-EnrollmentRegistry"
 
             Clear-CurrentEnrollmentId
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "`tTASK : 02 : Clear-CurrentEnrollmentId"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "`tTASK : 02 : Clear-CurrentEnrollmentId"
             Write-StatusLog -Resource HDO:MDM:Reset -Status "02 : Clear-CurrentEnrollmentId"
 
 
             Clear-EnrollmentTasks
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "`tTASK : 03 : Clear-EnrollmentTasks"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "`tTASK : 03 : Clear-EnrollmentTasks"
             Write-StatusLog -Resource HDO:MDM:Reset -Status "03 : Clear-EnrollmentTasks"
 
             Set-RegistryForEnrollment
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "`tTASK : 04 : Set-RegistryForEnrollment"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "`tTASK : 04 : Set-RegistryForEnrollment"
             Write-StatusLog -Resource HDO:MDM:Reset -Status "04 : Set-RegistryForEnrollment"
 
 
             New-MDMScheduledTask -Start
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "`tTASK : 05 : New-MDMScheduledTask"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "`tTASK : 05 : New-MDMScheduledTask"
             Write-StatusLog -Resource HDO:MDM:Reset -Status "05 : New-MDMScheduledTask"
 
-            C:\Scripts\PSTools\PsExec64.exe -accepteula -s C:\Windows\system32\deviceenroller.exe /c /AutoEnrollMDM | Out-File -FilePath C:\Scripts\Logs\deviceenroller-autoenrollmdm.log
+            C:\Temp\Intune\PSTools\PsExec64.exe -accepteula -s C:\Windows\system32\deviceenroller.exe /c /AutoEnrollMDM | Out-File -FilePath C:\Temp\Intune\Logs\deviceenroller-autoenrollmdm.log
 
-            Add-Content -Path C:\Scripts\Logs\Enrollments.log -Value "[END] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))"
+            Add-Content -Path C:\Temp\Intune\Logs\Enrollments.log -Value "[END] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))"
 
         }
     }
     else {
 
-        "[START] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))" | Out-File -FilePath C:\Scripts\Logs\AzureADJoin.log -Force
+        "[START] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))" | Out-File -FilePath C:\Temp\Intune\Logs\AzureADJoin.log -Force
 
-        C:\Scripts\PSTools\PsExec64.exe -accepteula -s C:\Windows\system32\dsregcmd.exe /join /debug | Out-File -FilePath C:\Scripts\Logs\dsregcmd-join-debug.log
-        Add-Content -Path C:\Scripts\Logs\AzureADJoin.log -Value "`tTASK : 01 : dsregcmd.exe /join /debug"
+        C:\Temp\Intune\PSTools\PsExec64.exe -accepteula -s C:\Windows\system32\dsregcmd.exe /join /debug | Out-File -FilePath C:\Temp\Intune\Logs\dsregcmd-join-debug.log
+        Add-Content -Path C:\Temp\Intune\Logs\AzureADJoin.log -Value "`tTASK : 01 : dsregcmd.exe /join /debug"
         Write-StatusLog -Resource HDO:MDM:AzureADJoin -Status "01 : dsregcmd.exe /join /debug"
 
         Start-ScheduledTask -TaskName '\Microsoft\Windows\Workplace Join\Automatic-Device-Join'
-        Add-Content -Path C:\Scripts\Logs\AzureADJoin.log -Value "`tTASK : 02 : Start Scheduled Task : Automatic-Device-Join"
+        Add-Content -Path C:\Temp\Intune\Logs\AzureADJoin.log -Value "`tTASK : 02 : Start Scheduled Task : Automatic-Device-Join"
         Write-StatusLog -Resource HDO:MDM:AzureADJoin -Status "02 : Start Scheduled Task : Automatic-Device-Join"
 
-        Add-Content -Path C:\Scripts\Logs\AzureADJoin.log -Value "[END] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))"
+        Add-Content -Path C:\Temp\Intune\Logs\AzureADJoin.log -Value "[END] : $((Get-Date).ToString('yyyy-MM-dd HH-mm-ss'))"
 
     }
 
