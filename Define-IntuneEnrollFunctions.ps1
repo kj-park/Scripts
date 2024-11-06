@@ -1,39 +1,27 @@
-﻿
+﻿# .VERSION:1.0
+
 
 #region define functions
 
 
-
     # Download PSTools
 
-    function Download-PSTools {
-        New-Item -Path C:\ -Name Scripts -ItemType Directory -Force
-        if ( ! (Test-Path -Path C:\Scripts\PSTools.zip) {
+    function Save-Tools {
+        New-Item -Path C:\ -Name Scripts -ItemType Directory -Force | Out-Null
+        if ( ! (Test-Path -Path C:\Scripts\PSTools.zip) ) {
             Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/PSTools.zip' -OutFile C:\Scripts\PSTools.zip
         }
-        Expand-Archive -Path C:\Scripts\PSTools.zip -DestinationPath C:\Scripts\PSTools -Force
-        Remove-Item C:\Scripts\PSTools.zip
+        Expand-Archive -Path C:\Scripts\PSTools.zip -DestinationPath C:\Scripts\PSTools
+        if ( ! (Test-Path -Path C:\Scripts\Define-IntuneEnrollFunctions.ps1) ) {
+            Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kj-park/Scripts/refs/heads/main/Define-IntuneEnrollFunctions.ps1' -OutFile C:\Scripts\Define-IntuneEnrollFunctions.ps1
+        }
+        Write-Host "# Downloaded the PSTools and Intune Enrollment Functions Script file to C:\Scripts" -ForegroundColor Yellow
     }
-
-
-    # Build Filtered Event Log Query by EventId
-
-    function Build-FilterXPath {
-        param (
-            <#
-            $SearchString = "(EventID=76 or EventID=95)"
-            $SearchString = "(EventID=76)"
-            #>
-            $SearchString 
-        )
-        $QueryXPath = "<QueryList><Query><Select>*[System[$SearchString]]</Select></Query></QueryList>"
-        return $QueryXPath
-    }
-
+  
 
     # Create MDM Enrollment Scheduled Task
 
-    function Create-MDMScheduledTask {
+    function New-MDMScheduledTask {
         param (
             $Reset = $true,
             [Switch]$Start
@@ -56,23 +44,29 @@
                 Register-ScheduledTask -XML $ScheduledTaskXml -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD' -Force
             }
             else {
-                Write-Host -Object "MDM Scheduled Task is existed." -ForegroundColor Red
+                Write-Host -Object "`t> MDM Scheduled Task is existed." -ForegroundColor Red
             }
         }
         if ( $Start ) {
             Start-ScheduledTask -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD'
+            Start-Sleep -Seconds 10
+            $LastTaskResult = (Get-ScheduledTaskInfo -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD').LastTaskResult.ToString("x")
+            Write-Host -Object "`t> MDM Scheduled Task : Last Task Result returned: $LastTaskResult" -ForegroundColor Red
         }
     }
 
     function Start-MDMScheduledTask {
         Start-ScheduledTask -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD'
+        Start-Sleep -Seconds 10
+        $LastTaskResult = (Get-ScheduledTaskInfo -TaskName '\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD').LastTaskResult.ToString("x")
+        Write-Host -Object "`t> MDM Scheduled Task : Last Task Result returned: $LastTaskResult" -ForegroundColor Red
     }
 
 
     # Get Current EnrollmentId
 
     function Get-CurrentEnrollmentId {
-        $EnrollmentGUID = $null; $EnrollmentGUID = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId).CurrentEnrollmentId
+        $EnrollmentGUID = $null; $EnrollmentGUID = (Get-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId -ErrorAction SilentlyContinue).CurrentEnrollmentId
         return $EnrollmentGUID
     }
 
@@ -81,7 +75,7 @@
         if ( $null -ne $CurrentEnrollmentId ) { Remove-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId -Force }
     }
 
-    function Get-EnrollmentIdsFromFolderFromFolder {
+    function Get-EnrollmentIdsFromFolder {
         param ( [Switch]$IncludePath )
         $ScheduledTaskObject = New-Object -ComObject Schedule.Service
         $ScheduledTaskObject.Connect()
@@ -130,11 +124,11 @@
         if ( $null -ne $EnrollmentGUIDs ) {
             foreach ( $EnrollmentGUID in $EnrollmentGUIDs ) {
                 foreach ($Key in $RegistryKeys) {
-                    Write-Host "Processing registry key $Key"
+                    Write-Host "`t> Processing registry key $Key" -ForegroundColor Red
                     # Remove registry entries
                     if (Test-Path -Path $Key) {
                         # Search for and remove keys with matching GUID
-                        Write-Host " - GUID entry found in $Key. Removing..."
+                        Write-Host "`t`t> GUID entry found in $Key. Removing..." -ForegroundColor Red
                         Get-ChildItem -Path $Key | Where-Object { $_.Name -match $EnrollmentGUID } | Remove-Item -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
                     }
                 }
@@ -145,17 +139,17 @@
 
     # Clear Scheduled Tasks for EnrollmentId
 
-    function Get-MDMTaskName {
+    function Get-MDMTask {
         $Name = $null
+        $Tasks = @()
         $ScheduledTaskObject = New-Object -ComObject Schedule.Service
         $ScheduledTaskObject.Connect()
-
         $EnterpriseMgmt = $ScheduledTaskObject.GetFolder("\Microsoft\Windows\EnterpriseMgmt")
-        $ReturnTask = $null; $ReturnTask = $EnterpriseMgmt.GetTasks(0)
-        if ( $null -ne $ReturnTask ) {
-            $Name = $ReturnTask | Select-Object -ExpandProperty Name
+        $ReturnTasks = $null; $ReturnTasks = $EnterpriseMgmt.GetTasks(0)
+        if ( $null -ne $ReturnTasks ) {
+            $Tasks += $ReturnTasks
+            return $Tasks.Name
         }
-        return $Name
     }
 
     function Clear-EnrollmentTasks {
@@ -163,7 +157,7 @@
             $MDMTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
         )
         $EnrollmentGUIDs = Get-EnrollmentIdsFromFolder
-        $Name = Get-MDMTaskName
+        $Name = Get-MDMTask
         if ( [string]::IsNullOrEmpty($Name) ) { $Name = $MDMTaskName }
         $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
         if ( $null -ne $Task ) {
@@ -192,22 +186,26 @@
         $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
         if ($Certs.Count -gt 0 ) {
             foreach ( $Cert in $Certs ) {
-                if ( $Cert.Issuer -eq 'CN=Microsoft Intune MDM Device CA' ) { $IntuneCerts += $IntuneCert }
-                if ( $Cert.Issuer -like '*CN=MS-Organization*' ) { $IntuneCerts += $IntuneCert }
+                if ( $Cert.Issuer -eq 'CN=Microsoft Intune MDM Device CA' ) { $IntuneCerts += $Cert }
+                if ( $Cert.Issuer -like '*CN=MS-Organization*' ) { $IntuneCerts += $Cert }
             }
         }
-        $IntuneCerts | Remove-Item -Confirm:$false    
+        $IntuneCerts | Remove-Item -Confirm:$false
     }
 
     
     # Set Registries for MDM Enrollment
 
     function Set-RegistryForEnrollment {
-        param ( $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa" ) <# TODO: $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa" #>
+        <# TODO: $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa"; $TenantName = "hdom365.onmicrosoft.com" #>
+        param (
+            $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa",
+            $TenantName = "hdom365.onmicrosoft.com"
+        )
 
         New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\' -Name MDM -Force -ErrorAction SilentlyContinue
         New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name AutoEnrollMDM -Value 1 -Force -ErrorAction SilentlyContinue
-        New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name UseAADCredentialType -Value 1 -Force -ErrorAction SilentlyContinue
+        New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name UseAADCredentialType -Value 1 -Force -ErrorAction SilentlyContinue # User: 1, Device: 2
 
         $Path = "HKLM:\SYSTEM\CurrentControlSet\Control\CloudDomainJoin\TenantInfo\$TenantId"
 
@@ -217,10 +215,15 @@
 
         New-ItemProperty -LiteralPath $Path -Name "AuthCodeUrl" -Value "https://login.microsoftonline.com/$TenantId/oauth2/authorize" -PropertyType String -Force -ErrorAction SilentlyContinue
         New-ItemProperty -LiteralPath $Path -Name "AccessTokenUrl" -Value "https://login.microsoftonline.com/$TenantId/oauth2/token" -PropertyType String -Force -ErrorAction SilentlyContinue
+
+        $Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CDJ\AAD"
+
+        New-ItemProperty -LiteralPath $Path -Name "TenantId" -Value $TenantId -PropertyType String -Force -ErrorAction SilentlyContinue
+        New-ItemProperty -LiteralPath $Path -Name "TenantName" -Value $TenantName -PropertyType String -Force -ErrorAction SilentlyContinue
     }
 
-
-    # Write Event Log for Status: Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Operational - 4027 - 다음 리소스(%1)에 현재 상태(%2)가 있습니다.
+    
+    # Write and Get Status to Event log : Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Operational : 4027
 
     function Write-StatusLog {
         param ( [String]$Resource, [String]$Status )
@@ -228,84 +231,55 @@
     }
 
     function Get-StatusLog {
-        $Status = [PSCustomObject]@{Resource=$null;Status=$null}
-        $EventLog = $null; $EventLog = Get-WinEvent -FilterHashtable @{ LogName="Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Operational"; Id=4027 } -MaxEvents 1
-        if ( $null -ne $EventLog ) {
-            $Status.Resource = $EventLog.Properties.Item(0).Value
-            $Status.Status   = $EventLog.Properties.Item(1).Value
-            return $Status
+        param ($MaxEvents = 1)        
+        $EventLogs = $null; $EventLogs = Get-WinEvent -FilterHashtable @{ LogName="Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Operational"; Id=4027 } -MaxEvents $MaxEvents -ErrorAction SilentlyContinue
+        if ( $null -ne $EventLogs ) {
+            $Logs = @()
+            foreach ( $EventLog in $EventLogs ) {
+                $Status = [PSCustomObject]@{Resource=$null;Status=$null}
+                $Status.Resource = $EventLog.Properties.Item(0).Value
+                $Status.Status   = $EventLog.Properties.Item(1).Value
+                $Logs += $Status
+            }
+            return $Logs
         }
     }
 
+
+    # Get Error from Event Log : Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin : 71, 76, 95, 75
+
+    function Build-FilterXPath {
+        param (
+            $SearchString = "(EventID=71 or EventID=75 or EventID=76 or EventID=95)"
+        )
+        $QueryXPath = "<QueryList><Query><Select>*[System[$SearchString]]</Select></Query></QueryList>"
+        return $QueryXPath
+    }
+
+    function Get-MDMEventLogs {
+        param (
+            [Validateset(71,75,76,95)][Int]$Id = 71,
+            $MaxEvents = 100
+        )
+        $LogAdmin = 'Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin'
+        $EventLogs = $null; $EventLogs = Get-WinEvent -FilterHashtable @{ LogName=$LogAdmin; Id=$Id } -MaxEvents $MaxEvents -ErrorAction SilentlyContinue
+        if ( $null -ne $EventLogs ) {
+            return $EventLogs
+        }
+    }
+
+    function Search-MDMEventLogs {
+        param (
+            $QueryXPath = (Build-FilterXPath),
+            $MaxEvents = 100
+        )
+        $LogAdmin = 'Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin'
+        $EventLogs = $null; $EventLogs = Get-WinEvent -LogName $LogAdmin -FilterXPath $QueryXPath -MaxEvents $MaxEvents -ErrorAction SilentlyContinue
+        if ( $null -ne $EventLogs ) {
+            return $EventLogs
+        }
+    }
 
 
 #endregion define functions
 
-
-#region Executing Script
-
-    # Dignosing Azure AD Joined
-
-    $AzureAdJoined  = if ( (Dsregcmd.exe /status | Select-String "AzureAdJoined : " | Select-Object -ExpandProperty Line) -match "YES" ) { $true } else { $false }
-    
-
-    $LogAdmin = "Microsoft-Windows-DeviceManagement-Enterprise-Diagnostics-Provider/Admin"
-
-    $QueryXPath = Build-FilterXPath -SearchString "(EventID=75)"
-    $MDMEnvent = $null; $MDMEnvent = Get-WinEvent -LogName $LogAdmin -FilterXPath $QueryXPath -MaxEvents 1 -ErrorAction SilentlyContinue
-    if ( $null -eq $MDMEnvent ) { $Enrolled = $false } else { $Enrolled = $true }
-
-    if ( $AzureAdJoined ) {
-        if ( $Enrolled ) { Write-Host -Object "정상적으로 Intune Enrollment 작업이 완료되었습니다.`n" -ForegroundColor Cyan }
-        else {
-            $EnrollmentGUID = $null; $EnrollmentGUID = Get-CurrentEnrollmentId
-            if ( $null -eq $EnrollmentGUID) {
-
-                Write-Host -Object "STATUS: CurrentEnrollmentId 가 없습니다. MDM Scheduled Task 생성:`n" -ForegroundColor Yellow
-
-                Set-RegistryForEnrollment
-                Write-StatusLog -Resource HDO:MDM:EnrollmentRegistries -Status Create
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
-
-                Create-MDMScheduledTask -Start
-                Write-StatusLog -Resource HDO:MDM:ScheduledTask -Status Create
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
-            }
-            else {
-
-                Write-Host -Object "STATUS: CurrentEnrollmentId Registries 및 Scheduled Tasks Clear 작업:`n" -ForegroundColor Yellow
-
-                Clear-EnrollmentRegistry -EnrollmentGUIDs $EnrollmentGUID
-                Clear-CurrentEnrollmentId
-                Write-StatusLog -Resource HDO:MDM:EnrollmentRegistry -Status Clear
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
-
-                Clear-EnrollmentTasks
-                Write-StatusLog -Resource HDO:MDM:EnrollmentTasks -Status Clear
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
-
-                Set-RegistryForEnrollment
-                Write-StatusLog -Resource HDO:MDM:EnrollmentRegistries -Status Prepare
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta
-
-
-                Create-MDMScheduledTask -Start
-                Write-StatusLog -Resource HDO:MDM:MDMScheduledTask -Status Create
-                Write-Host -Object "`t$(Get-StatusLog)" -ForegroundColor Magenta                
-                
-            }
-        }
-    }
-    else {
-        Write-Host -Object "아래 설명하는 단계의 수행이 필요합니다:`n" -ForegroundColor Cyan
-        Write-Host -Object "`t1. 관리자 권한으로 명령프롬프트(cmd)를 실행하고 ""dsregcmd /leave"" 명령을 실행하고 컴퓨터를 재시작합니다." -ForegroundColor Cyan
-        Write-Host -Object "`t2. 관리자 권한으로 명령프롬프트(cmd)를 실행하고 ""dsregcmd /join /debug"" 명령을 실행하고 컴퓨터를 재시작합니다." -ForegroundColor Cyan
-        Write-StatusLog -Resource ADO:AzureADJoin -Status NO
-        Start-ScheduledTask -TaskName '\Microsoft\Windows\Workplace Join\Automatic-Device-Join'
-    }
-
-    Download-PSTools
-
-    C:\Scripts\PSTools\PsExec64.exe -accepteula -s C:\Windows\system32\deviceenroller.exe /c /AutoEnrollMDM
-
-#endregion Executing Script
