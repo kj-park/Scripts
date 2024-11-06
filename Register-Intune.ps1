@@ -84,7 +84,7 @@ function Set-RegistryForEnrollment {
         $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa",
         $TenantName = "hdom365.onmicrosoft.com"
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 5 -Message "STEP : IntuneEnrollment : Set-RegistryForEnrollment"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 7 -Message "STEP : IntuneEnrollment : Set-RegistryForEnrollment"
 
     New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\' -Name MDM -Force -ErrorAction SilentlyContinue
     New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name AutoEnrollMDM -Value 1 -Force -ErrorAction SilentlyContinue
@@ -182,7 +182,7 @@ function Get-TargetEnrollmentIds {
 
 function Clear-EnrollmentRegistry {
     param ($EnrollmentGUIDs = (Get-TargetEnrollmentIds))
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 2 -Message "STEP : IntuneEnrollment : Clear-EnrollmentRegistry"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 3 -Message "STEP : IntuneEnrollment : Clear-EnrollmentRegistry"
     $RegistryKeys = @(
         "HKLM:\SOFTWARE\Microsoft\Enrollments"
         "HKLM:\SOFTWARE\Microsoft\Enrollments\Status"
@@ -214,7 +214,7 @@ function Get-CurrentEnrollmentId {
 }
 
 function Clear-CurrentEnrollmentId {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 3 -Message "STEP : IntuneEnrollment : Clear-CurrentEnrollmentId"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 4 -Message "STEP : IntuneEnrollment : Clear-CurrentEnrollmentId"
     $CurrentEnrollmentId = $null; $CurrentEnrollmentId = Get-CurrentEnrollmentId
     if ( $null -ne $CurrentEnrollmentId ) { Remove-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId -Force }
 }
@@ -253,7 +253,7 @@ function Clear-EnrollmentTasks {
     param (
         $EnrollmentTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 4 -Message "STEP : IntuneEnrollment : Clear-EnrollmentTasks"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 5 -Message "STEP : IntuneEnrollment : Clear-EnrollmentTasks"
     $Name = Get-EnrollmentTask
     if ( [string]::IsNullOrEmpty($Name) ) { $Name = $EnrollmentTaskName }
     $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -279,7 +279,7 @@ function New-EnrollmentScheduledTask {
         $Reset = $true,
         [Switch]$Start
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 6 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 8 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
 
     $ScheduledTaskXml = "<?xml version=""1.0"" encoding=""UTF-16""?><Task version=""1.3"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task""><RegistrationInfo><Author>Microsoft Corporation</Author><URI>\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD</URI><SecurityDescriptor>D:P(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;LS)</SecurityDescriptor></RegistrationInfo> <Triggers><TimeTrigger><Repetition><Interval>PT5M</Interval><Duration>P1D</Duration><StopAtDurationEnd>true</StopAtDurationEnd></Repetition><StartBoundary>$((Get-Date).AddMinutes(5).ToString("yyyy-MM-ddTHH:mm:ss"))+09:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers><Principals><Principal id=""Author""><UserId>S-1-5-18</UserId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>Queue</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT1H</ExecutionTimeLimit><Priority>7</Priority></Settings><Actions Context=""Author""><Exec><Command>%windir%\system32\deviceenroller.exe</Command><Arguments>/c /AutoEnrollMDM</Arguments></Exec></Actions></Task>"
     <# by DeviceCredential
@@ -312,7 +312,7 @@ function New-EnrollmentScheduledTask {
 }
 
 function Clear-IntuneCertificate {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 7 -Message "STEP : IntuneEnrollment : Clear-IntuneCertificate"
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 6 -Message "STEP : IntuneEnrollment : Clear-IntuneCertificate"
     $IntuneCerts = @()
     $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
     if ($Certs.Count -gt 0 ) {
@@ -337,8 +337,8 @@ if ( $Enrolled ) {
     New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : 정상적으로 Intune Enrollment 작업이 완료되었습니다."
 }
 else {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : Intune Enrollment Reset 작업을 시작합니다."
-    
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 2 -Message "STATUS : IntuneEnrollment : Intune Enrollment Reset 작업을 시작합니다."
+
     Clear-EnrollmentRegistry
 
     Clear-CurrentEnrollmentId
