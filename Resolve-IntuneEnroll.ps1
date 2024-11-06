@@ -9,10 +9,12 @@ function Save-Tools {
     if ( ! (Test-Path -Path C:\Scripts\PSTools.zip) ) {
         Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/PSTools.zip' -OutFile C:\Scripts\PSTools.zip
     }
-    Expand-Archive -Path C:\Scripts\PSTools.zip -DestinationPath C:\Scripts\PSTools
+    Expand-Archive -Path C:\Scripts\PSTools.zip -DestinationPath C:\Scripts\PSTools -Force
+    <#
     if ( ! (Test-Path -Path C:\Scripts\Resolve-IntuneEnrollmentFunctions.ps1) ) {
         Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/kj-park/Scripts/refs/heads/main/Resolve-IntuneEnrollmentFunctions.ps1' -OutFile C:\Scripts\Resolve-IntuneEnrollmentFunctions.ps1
     }
+    #>
     Write-Host "# Downloaded the PSTools and Intune Enrollment Functions Script file to C:\Scripts" -ForegroundColor Yellow
 }
 
