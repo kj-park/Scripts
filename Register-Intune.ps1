@@ -337,14 +337,15 @@ if ( $Enrolled ) {
     New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : 정상적으로 Intune Enrollment 작업이 완료되었습니다."
 }
 else {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : 정상적으로 Intune Enrollment 작업이 완료되었습니다."
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : Intune Enrollment Reset 작업을 시작합니다."
+    
     Clear-EnrollmentRegistry
 
     Clear-CurrentEnrollmentId
 
     Clear-EnrollmentTasks
 
-
+    Clear-IntuneCertificate
 
     Set-RegistryForEnrollment
 
