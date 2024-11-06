@@ -8,6 +8,8 @@
 
     function Save-Tools {
         New-Item -Path C:\Temp -Name Intune -ItemType Directory -Force | Out-Null
+        New-Item -Path C:\Temp\Intune -Name PSTools -ItemType Directory -Force | Out-Null
+        New-Item -Path C:\Temp\Intune -Name Logs -ItemType Directory -Force | Out-Null
         if ( ! (Test-Path -Path C:\Temp\Intune\PSTools.zip) ) {
             Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/PSTools.zip' -OutFile C:\Temp\Intune\PSTools.zip
         }
@@ -291,13 +293,14 @@
 
     # Download Related Tool
 
+    <#
+    New-Item -Path C:\Temp -Name Intune -ItemType Directory -Force | Out-Null
+    New-Item -Path C:\Temp\Intune -Name PSTools -ItemType Directory -Force | Out-Null
+    New-Item -Path C:\Temp\Intune -Name Logs -ItemType Directory -Force | Out-Null
+    #>
     Save-Tools
-    #. C:\Temp\Intune\Define-IntuneEnrollFunctions.ps1
-
 
     # Dignosing Azure AD Joined
-
-    New-Item -Path C:\Temp\Intune -Name Logs -ItemType Directory -Force | Out-Null
 
     C:\Windows\system32\dsregcmd.exe /status /debug | Out-File -FilePath C:\Temp\Intune\Logs\dsregcmd-status-before.log -Force
 
