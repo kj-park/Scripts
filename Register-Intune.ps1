@@ -232,6 +232,23 @@ function Get-EnrollmentTask {
     }
 }
 
+function Get-EnrollmentIdsFromFolder {
+    param ( [Switch]$IncludePath )
+    $ScheduledTaskObject = New-Object -ComObject Schedule.Service
+    $ScheduledTaskObject.Connect()
+    $EnterpriseMgmt = $ScheduledTaskObject.GetFolder("\Microsoft\Windows\EnterpriseMgmt")
+    $Folders = @()
+    $Folders += $EnterpriseMgmt.GetFolders(0) | Select-Object -Property Name,Path
+    if ( $Folders.Count -gt 0 ) {
+        if ( $IncludePath ) {
+            return $Folders
+        }
+        else {
+            return $Folders.Name
+        }
+    }
+}
+
 function Clear-EnrollmentTasks {
     param (
         $EnrollmentTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
@@ -307,6 +324,7 @@ if ( $Enrolled ) {
     New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : 정상적으로 Intune Enrollment 작업이 완료되었습니다."
 }
 else {
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 1 -Message "STATUS : IntuneEnrollment : 정상적으로 Intune Enrollment 작업이 완료되었습니다."
     Clear-EnrollmentRegistry
 
     Clear-CurrentEnrollmentId
