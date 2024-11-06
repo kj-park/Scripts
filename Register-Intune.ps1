@@ -311,6 +311,19 @@ function New-EnrollmentScheduledTask {
     }
 }
 
+function Clear-IntuneCertificate {
+    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 7 -Message "STEP : IntuneEnrollment : Clear-IntuneCertificate"
+    $IntuneCerts = @()
+    $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
+    if ($Certs.Count -gt 0 ) {
+        foreach ( $Cert in $Certs ) {
+            if ( $Cert.Issuer -eq 'CN=Microsoft Intune MDM Device CA' ) { $IntuneCerts += $Cert }
+            if ( $Cert.Issuer -like '*CN=MS-Organization*' ) { $IntuneCerts += $Cert }
+        }
+    }
+    $IntuneCerts | Remove-Item -Confirm:$false
+}
+
 #endregion Define Functions
 
 New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 99 -Message "STEP : IntuneEnrollment : START"
@@ -330,6 +343,8 @@ else {
     Clear-CurrentEnrollmentId
 
     Clear-EnrollmentTasks
+
+
 
     Set-RegistryForEnrollment
 
