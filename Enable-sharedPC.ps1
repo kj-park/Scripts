@@ -3,10 +3,10 @@
 <#
 # System 계정으로 실행:
 
-    psexec.exe -i -s powershell.exe
-    psexec.exe -i -s powershell_ise.exe
+    C:\Temp\Intune\PSTools\PsExec64.exe -i -s powershell.exe
+    C:\Temp\Intune\PSTools\PsExec64.exe -i -s powershell_ise.exe
 
-    psexec.exe -i -s powershell.exe -ExecutionPolicy Bypass -File C:\Temp\Enable-SharedPC.ps1
+    C:\Temp\Intune\PSTools\PsExec64.exe -accepteula -i -s powershell.exe -ExecutionPolicy Bypass -File C:\Temp\Enable-SharedPC.ps1
 
 #>
 
