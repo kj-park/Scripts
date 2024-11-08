@@ -318,7 +318,8 @@ function Clear-IntuneCertificate {
     $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
     if ($Certs.Count -gt 0 ) {
         foreach ( $Cert in $Certs ) {
-            if ( $Cert.Issuer -eq 'CN=Microsoft Intune MDM Device CA' ) { $IntuneCerts += $Cert }
+            if ( $Cert.Issuer -like '*Microsoft Intune MDM Device CA*' ) { $IntuneCerts += $Cert }
+            if ( $Cert.Issuer -like '*Microsoft Device Management Device CA*' ) { $IntuneCerts += $Cert }
             if ( $Cert.Issuer -like '*CN=MS-Organization*' ) { $IntuneCerts += $Cert }
         }
     }
