@@ -90,7 +90,7 @@ Default is 0 (12am)
 
     Example: 1am > 60, 2am > 120
 #>
-$cimObject.MaintenanceStartTime = 0
+$cimObject.MaintenanceStartTime = 720
 
 
 <# RestrictLocalStorage
