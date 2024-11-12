@@ -85,7 +85,6 @@ New-Variable -Name TenantName   -Value "hdom365.onmicrosoft.com"                
 #endregion Set Variable for HD현대오일뱅크
 
 
-
 #region Define Types: MdmInterop, NetInterop
 
 if (-not ([System.Management.Automation.PSTypeName]'MdmInterop').Type) {
@@ -305,16 +304,13 @@ function Invoke-PopupWindow {
     )
     begin {
         $IntStyle = switch ($Style) { 'OkOnly' {0}; 'OkCancel' {1}; 'AbortRetryIgnore' {2}; 'YesNoCancel'{3}; 'YesNo' {4}; 'RetryCancel' {5} }
-        $IntType = switch ($Type) { 'Critical' {16}; 'Question' {32}; 'Exclamation' {48}; 'Information'{64} }
+        $IntType = switch ($IconType) { 'Critical' {16}; 'Question' {32}; 'Exclamation' {48}; 'Information'{64} }
 
         $Return = $null
         $WShell = New-Object -ComObject WScript.Shell
-        $SecondsToWait = 0
     }
     process {
         $Return = $WShell.Popup($Description, $SecondsToWait, $Title, $IntStyle + $IntType)
-    }
-    end {
         $Return = switch ($Return) { 1 {'Ok'}; 2 {'Cancel'}; 3 {'Abort'}; 4 {'Retry'}; 5 {'Ignore'}; 6 {'Yes'}; 7 {'No'}; Default {$null} }
         return $Return
     }
@@ -355,7 +351,6 @@ function Save-Tools {
         - Logs : 진단 및 결과를 저장하기 위한 폴더입니다.
     #>
     param ( $Path = "C:\Temp", $FolderName = "Intune" )
-    New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 0 -Message "STEP : SaveTools : Downloaded the Diag & Execute Tool : $Path\$FolderName"
     New-Item -Path $Path -Name $FolderName -ItemType Directory -Force | Out-Null
     New-Item -Path "$Path\$FolderName" -Name Logs -ItemType Directory -Force | Out-Null
     New-Item -Path "$Path\$FolderName" -Name PSTools -ItemType Directory -Force | Out-Null
@@ -371,8 +366,6 @@ function Set-EnrollmentRegistry {
         $TenantId = $TenantId,
         $TenantName = $TenantName
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 7 -Message "STEP : IntuneEnrollment : Set-RegistryForEnrollment"
-
     New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\' -Name MDM -Force -ErrorAction SilentlyContinue
     New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name AutoEnrollMDM -Value 1 -Force -ErrorAction SilentlyContinue
     New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name UseAADCredentialType -Value 1 -Force -ErrorAction SilentlyContinue # User: 1, Device: 2
@@ -398,7 +391,6 @@ function Join-AzureAD {
     param ( $PSToolPath = 'C:\Temp\Intune\PSTools', $LogPath = 'C:\Temp\Intune\Logs' )
     $AzureAdJoined  = if ( (C:\Windows\system32\dsregcmd.exe /status | Select-String "AzureAdJoined : " | Select-Object -ExpandProperty Line) -match "YES" ) { $true } else { $false }
     if ( $AzureAdJoined ) {
-        New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 2 -Message "STEP : AzureADJoin : 디바이스가 AzureAD Joined 상태입니다."
         return $true
     }
     else {
@@ -410,12 +402,12 @@ function Join-AzureAD {
         Start-Sleep -Seconds 5
         $Result = Get-ScheduledTaskInfo -TaskName '\Microsoft\Windows\Workplace Join\Automatic-Device-Join' | Select-Object -ExpandProperty LastTaskResult
         if ( $Result -eq 0 ) {
-            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 3 -Message "STEP : AzureADJoin : dsregcmd.exe /join /debug : Join 작업을 수행하였습니다. PC 재시작이 필요합니다.`n`t> Log Location: $LogPath\dsregcmd-join-debug.log"
+            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 33 -Message "STEP : AzureADJoin : dsregcmd.exe /join /debug : Join 작업을 수행하였습니다. PC 재시작이 필요합니다.`n`t> Log Location: $LogPath\dsregcmd-join-debug.log"
             return $true
         }
         else {
-            New-IntuneEventLog -Source AzureADJoin -EntryType Error -EventId 4 -Message "STEP : AzureADJoin : dsregcmd.exe /join /debug : Error : ($($Result.ToString('x'))).`n`t> Log Location: $LogPath\dsregcmd-join-debug.log"
-            return $false
+            New-IntuneEventLog -Source AzureADJoin -EntryType Error -EventId 44 -Message "STEP : AzureADJoin : dsregcmd.exe /join /debug : Error : ($($Result.ToString('x'))).`n`t> Log Location: $LogPath\dsregcmd-join-debug.log"
+            return $Result.ToString('x')
         }
     }
 }
@@ -439,6 +431,7 @@ function Build-WinEventFilterXPath {
     $QueryXPath = "<QueryList><Query><Select>*[System[$SearchString]]</Select></Query></QueryList>"
     return $QueryXPath
 }
+
 function Search-DeviceManagementEventLogs {
     param (
         $QueryXPath = (Build-WinEventFilterXPath),
@@ -479,7 +472,6 @@ function Clear-EnrollmentRegistry {
 
     #>
     param ($EnrollmentGUIDs = (Get-EnrollmentIds))
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 3 -Message "STEP : IntuneEnrollment : Clear-EnrollmentRegistry"
     $RegistryKeys = @(
         "HKLM:\SOFTWARE\Microsoft\Enrollments"
         "HKLM:\SOFTWARE\Microsoft\Enrollments\Status"
@@ -493,16 +485,16 @@ function Clear-EnrollmentRegistry {
     if ( $null -ne $EnrollmentGUIDs ) {
         foreach ( $EnrollmentGUID in $EnrollmentGUIDs ) {
             foreach ($Key in $RegistryKeys) {
-                Write-Host "`t> Processing registry key $Key" -ForegroundColor Red
                 # Remove registry entries
                 if (Test-Path -Path $Key) {
                     # Search for and remove keys with matching GUID
-                    Write-Host "`t`t> GUID entry found in $Key. Removing..." -ForegroundColor Red
+                    Write-Host "`t> $Key\$EnrollmentGUID. Removing..." -ForegroundColor Red
                     Get-ChildItem -Path $Key | Where-Object { $_.Name -match $EnrollmentGUID } | Remove-Item -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
                 }
             }
         }
     }
+    Write-Host "`t`t> HKLM:\SOFTWARE\Microsoft\Enrollments Removing..." -ForegroundColor Red
     Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Enrollments" | Where-Object { $_.Name -notmatch 'Context|Status|ValidNodePaths'} | Remove-Item -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
     $CurrentEnrollmentId = $null; $CurrentEnrollmentId = Get-CurrentEnrollmentId
     if ( $null -ne $CurrentEnrollmentId ) { Remove-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Logger -Name CurrentEnrollmentId -Force }
@@ -524,7 +516,6 @@ function Clear-EnrollmentTasks {
     param (
         $EnrollmentTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 5 -Message "STEP : IntuneEnrollment : Clear-EnrollmentTasks"
     $Name = Get-EnrollmentTask
     if ( [string]::IsNullOrEmpty($Name) ) { $Name = $EnrollmentTaskName }
     $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -536,10 +527,11 @@ function Clear-EnrollmentTasks {
     $EnterpriseMgmt = $ScheduledTaskObject.GetFolder("\Microsoft\Windows\EnterpriseMgmt")
 
     $Folders = @()
-    $Folders += $EnterpriseMgmt.GetFolders(0) | Select-Object -Property Name,Path
+    $Folders += $EnterpriseMgmt.GetFolders(0) | Select-Object -ExpandProperty Name
     if ( $Folders.Count -gt 0 ) {
         foreach ( $Folder in $Folders ) {
-            Get-ScheduledTask | Where-Object { $PSItem.Taskpath -match "\\Microsoft\\Windows\\EnterpriseMgmt\\$($Folder.Name)\\*" } | Unregister-ScheduledTask -Confirm:$false
+            Write-Host "`t> Tasks in \Microsoft\Windows\EnterpriseMgmt\$Folder Removing..."
+            Get-ScheduledTask | Where-Object { $PSItem.Taskpath -match "\\Microsoft\\Windows\\EnterpriseMgmt\\$Folder\\*" } | Unregister-ScheduledTask -Confirm:$false
             $EnterpriseMgmt.DeleteFolder($Folder.Name,0)
         }
     }
@@ -550,8 +542,6 @@ function New-EnrollmentScheduledTask {
         $Reset = $true,
         [Switch]$Start
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 8 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
-
     $ScheduledTaskXml = "<?xml version=""1.0"" encoding=""UTF-16""?><Task version=""1.3"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task""><RegistrationInfo><Author>Microsoft Corporation</Author><URI>\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD</URI><SecurityDescriptor>D:P(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;LS)</SecurityDescriptor></RegistrationInfo> <Triggers><TimeTrigger><Repetition><Interval>PT5M</Interval><Duration>P1D</Duration><StopAtDurationEnd>true</StopAtDurationEnd></Repetition><StartBoundary>$((Get-Date).AddMinutes(5).ToString("yyyy-MM-ddTHH:mm:ss"))+09:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers><Principals><Principal id=""Author""><UserId>S-1-5-18</UserId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>Queue</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT1H</ExecutionTimeLimit><Priority>7</Priority></Settings><Actions Context=""Author""><Exec><Command>%windir%\system32\deviceenroller.exe</Command><Arguments>/c /AutoEnrollMDM</Arguments></Exec></Actions></Task>"
     <# by DeviceCredential
     $ScheduledTaskXml = "<?xml version=""1.0"" encoding=""UTF-16""?><Task version=""1.3"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task""><RegistrationInfo><Author>Microsoft Corporation</Author><URI>\Microsoft\Windows\EnterpriseMgmt\Schedule created by enrollment client for automatically enrolling in MDM from AAD</URI><SecurityDescriptor>D:P(A;;FA;;;BA)(A;;FA;;;SY)(A;;FRFX;;;LS)</SecurityDescriptor></RegistrationInfo> <Triggers><TimeTrigger><Repetition><Interval>PT5M</Interval><Duration>P1D</Duration><StopAtDurationEnd>true</StopAtDurationEnd></Repetition><StartBoundary>$((Get-Date).AddMinutes(5).ToString("yyyy-MM-ddTHH:mm:ss"))+09:00</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers><Principals><Principal id=""Author""><UserId>S-1-5-18</UserId><RunLevel>LeastPrivilege</RunLevel></Principal></Principals><Settings><MultipleInstancesPolicy>Queue</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT1H</ExecutionTimeLimit><Priority>7</Priority></Settings><Actions Context=""Author""><Exec><Command>%windir%\system32\deviceenroller.exe</Command><Arguments>/c /AutoEnrollMDMUsingAADDeviceCredential</Arguments></Exec></Actions></Task>"
@@ -560,7 +550,7 @@ function New-EnrollmentScheduledTask {
     <Arguments>//c /AutoEnrollMDMUsingAADDeviceCredential</Arguments>
     #>
     $TaskName = 'Schedule created by enrollment client for automatically enrolling in MDM from AAD'
-
+    Write-Host "`t> Task: 'Schedule created by enrollment client for automatically enrolling in MDM from AAD' Creating"
     $Task = $null; $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ( $null -eq $Task ) {
         Register-ScheduledTask -XML $ScheduledTaskXml -TaskName "\Microsoft\Windows\EnterpriseMgmt\$TaskName" -Force
@@ -575,8 +565,8 @@ function New-EnrollmentScheduledTask {
         }
     }
     if ( $Start ) {
+        Write-Host "`t> Task: 'Schedule created by enrollment client for automatically enrolling in MDM from AAD' Starting"
         Start-ScheduledTask -TaskName "\Microsoft\Windows\EnterpriseMgmt\$TaskName"
-        Start-Sleep -Seconds 5
         $TaskInfo = $null; $TaskInfo = Get-ScheduledTaskInfo -TaskName "\Microsoft\Windows\EnterpriseMgmt\$TaskName" -ErrorAction SilentlyContinue
         if ( $null -eq $TaskInfo ) { $LastTaskResult = $null }
         else { $LastTaskResult = $TaskInfo.LastTaskResult.ToString("x") }
@@ -585,7 +575,6 @@ function New-EnrollmentScheduledTask {
 }
 
 function Clear-IntuneCertificate {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 6 -Message "STEP : IntuneEnrollment : Clear-IntuneCertificate"
     $IntuneCerts = @()
     $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
     if ($Certs.Count -gt 0 ) {
@@ -593,23 +582,21 @@ function Clear-IntuneCertificate {
             if ( $Cert.Issuer -like '*Microsoft Intune MDM Device CA*' ) { $IntuneCerts += $Cert }
         }
     }
+    Write-Host "`t> Cert: Issuer '*Microsoft Intune MDM Device CA*' Removing..."
     $IntuneCerts | Remove-Item -Confirm:$false
 }
 
 function Register-EnableIntuneEnroll {
     $Action = New-ScheduledTaskAction -Execute PowerShell.exe -Argument {-ExecutionPolicy Bypass -File C:\Temp\Enable-IntuneEnroll.ps1}
     $Trigger = New-ScheduledTaskTrigger -AtLogOn
-    $Settings = New-ScheduledTaskSettingsSet
-    $Principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM'
+    $Settings = New-ScheduledTaskSettingsSet -Priority 4
+    $Principal = New-ScheduledTaskPrincipal -UserId (whoami) -LogonType Interactive
     $Task = New-ScheduledTask -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings
     Register-ScheduledTask -TaskName 'Enable-IntuneEnroll' -InputObject $Task
-
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 98 -Message 'STATUS:Register-EnableIntuneEnroll'
 }
 
 function UnRegister-EnableIntuneEnroll {
-    Get-ScheduledTask -TaskName 'Enable-IntuneEnroll' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false -ErrorAction SilentlyContinue 
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 99 -Message 'STATUS:UnRegister-EnableIntuneEnroll'
+    Get-ScheduledTask -TaskName 'Enable-IntuneEnroll' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false -ErrorAction SilentlyContinue     
 }
 
 function Get-EnableIntuneEnroll {
@@ -619,9 +606,11 @@ function Get-EnableIntuneEnroll {
 
 #endregion Define Functions
 
-New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 0 -Message 'IntuneEnrollment : START'
+New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 0 -Message 'START'
 
+New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 0 -Message "STEP : SaveTools : Downloaded the Diag & Execute Tool : $Path\$FolderName"
 Save-Tools
+
 $IsADJoined = [NetInterop]::IsADJoined()
 $IsAADJoined = [NetInterop]::IsAADJoined()
 $IsDeviceRegisteredWithManagement = [MdmInterop]::IsDeviceRegisteredWithManagement()
@@ -629,28 +618,42 @@ $IsDeviceRegisteredWithManagement = [MdmInterop]::IsDeviceRegisteredWithManageme
 if ( $IsADJoined ) {
     if ( $IsAADJoined ) {
         if ( ! $IsDeviceRegisteredWithManagement ) {
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 10 -Message 'TASK : IntuneEnrollment'
 
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 11 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentRegistry'
             Clear-EnrollmentRegistry
-            
+
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 12 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentTasks'
             Clear-EnrollmentTasks
             
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 13 -Message 'STEP : IntuneEnrollment : Clear-IntuneCertificate'
             Clear-IntuneCertificate
 
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 14 -Message "STEP : IntuneEnrollment : Set-EnrollmentRegistry"
             Set-EnrollmentRegistry
         
-            New-EnrollmentScheduledTask -Start        
-
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 15 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
+            New-EnrollmentScheduledTask -Start
         }
-        UnRegister-ResetIntuneEnroll
-        New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 100 -Message 'IntuneEnrollment : END'
+
+        UnRegister-EnableIntuneEnroll
+        New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 100 -Message 'END'
+        #$IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 마무리하기 위하여 Computer Restart가 필요합니다.`n지금 재시작할까요?" -IconType Question -Style YesNo
+        #if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
     }
     else {
         New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 1 -Message 'TASK:AzureADJoin'
+
         New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 2 -Message 'STATUS:DOMAINJOINED'
-        Set-EnrollmentRegistry
+
+        New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 3 -Message "STEP : AzureADJoin : Set-EnrollmentRegistry"
+        Set-EnrollmentRegistry        
         if ( (Join-AzureAD) ) {
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 6 -Message 'STATUS:AZUREADJOINED'
-            Register-ResetIntuneEnroll
+            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 4 -Message 'STATUS:AZUREADJOINED'
+            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 5 -Message 'STEP : AzureADJoin : Register-EnableIntuneEnroll'
+            Register-EnableIntuneEnroll
+            #$IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 위하여 Computer Restart가 필요합니다.`n지금 재시작할까요?" -IconType Question -Style YesNo
+            #if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
         }
     }
 }

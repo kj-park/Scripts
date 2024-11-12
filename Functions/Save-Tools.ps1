@@ -6,7 +6,6 @@
         - Logs : 진단 및 결과를 저장하기 위한 폴더입니다.
     #>
     param ( $Path = "C:\Temp", $FolderName = "Intune" )
-    New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 0 -Message "STEP : SaveTools : Downloaded the Diag & Execute Tool : $Path\$FolderName"
     New-Item -Path $Path -Name $FolderName -ItemType Directory -Force | Out-Null
     New-Item -Path "$Path\$FolderName" -Name Logs -ItemType Directory -Force | Out-Null
     New-Item -Path "$Path\$FolderName" -Name PSTools -ItemType Directory -Force | Out-Null

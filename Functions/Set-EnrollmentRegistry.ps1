@@ -4,8 +4,6 @@
         $TenantId = $TenantId,
         $TenantName = $TenantName
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 7 -Message "STEP : IntuneEnrollment : Set-RegistryForEnrollment"
-
     New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\' -Name MDM -Force -ErrorAction SilentlyContinue
     New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name AutoEnrollMDM -Value 1 -Force -ErrorAction SilentlyContinue
     New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\MDM' -Name UseAADCredentialType -Value 1 -Force -ErrorAction SilentlyContinue # User: 1, Device: 2

@@ -1,5 +1,4 @@
 ﻿function Clear-IntuneCertificate {
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 6 -Message "STEP : IntuneEnrollment : Clear-IntuneCertificate"
     $IntuneCerts = @()
     $Certs = Get-ChildItem -Path Cert:\LocalMachine\My
     if ($Certs.Count -gt 0 ) {
@@ -7,5 +6,6 @@
             if ( $Cert.Issuer -like '*Microsoft Intune MDM Device CA*' ) { $IntuneCerts += $Cert }
         }
     }
+    Write-Host "`t> Cert: Issuer '*Microsoft Intune MDM Device CA*' Removing..."
     $IntuneCerts | Remove-Item -Confirm:$false
 }

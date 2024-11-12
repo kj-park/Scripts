@@ -2,7 +2,6 @@
     param (
         $EnrollmentTaskName = "Schedule created by enrollment client for automatically enrolling in MDM from AAD"
     )
-    New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 5 -Message "STEP : IntuneEnrollment : Clear-EnrollmentTasks"
     $Name = Get-EnrollmentTask
     if ( [string]::IsNullOrEmpty($Name) ) { $Name = $EnrollmentTaskName }
     $Task = $null; $Task = Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
@@ -14,10 +13,11 @@
     $EnterpriseMgmt = $ScheduledTaskObject.GetFolder("\Microsoft\Windows\EnterpriseMgmt")
 
     $Folders = @()
-    $Folders += $EnterpriseMgmt.GetFolders(0) | Select-Object -Property Name,Path
+    $Folders += $EnterpriseMgmt.GetFolders(0) | Select-Object -ExpandProperty Name
     if ( $Folders.Count -gt 0 ) {
         foreach ( $Folder in $Folders ) {
-            Get-ScheduledTask | Where-Object { $PSItem.Taskpath -match "\\Microsoft\\Windows\\EnterpriseMgmt\\$($Folder.Name)\\*" } | Unregister-ScheduledTask -Confirm:$false
+            Write-Host "`t> Tasks in \Microsoft\Windows\EnterpriseMgmt\$Folder Removing..."
+            Get-ScheduledTask | Where-Object { $PSItem.Taskpath -match "\\Microsoft\\Windows\\EnterpriseMgmt\\$Folder\\*" } | Unregister-ScheduledTask -Confirm:$false
             $EnterpriseMgmt.DeleteFolder($Folder.Name,0)
         }
     }

@@ -17,11 +17,10 @@
     )
     begin {
         $IntStyle = switch ($Style) { 'OkOnly' {0}; 'OkCancel' {1}; 'AbortRetryIgnore' {2}; 'YesNoCancel'{3}; 'YesNo' {4}; 'RetryCancel' {5} }
-        $IntType = switch ($Type) { 'Critical' {16}; 'Question' {32}; 'Exclamation' {48}; 'Information'{64} }
+        $IntType = switch ($IconType) { 'Critical' {16}; 'Question' {32}; 'Exclamation' {48}; 'Information'{64} }
 
         $Return = $null
         $WShell = New-Object -ComObject WScript.Shell
-        $SecondsToWait = 0
     }
     process {
         $Return = $WShell.Popup($Description, $SecondsToWait, $Title, $IntStyle + $IntType)

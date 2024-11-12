@@ -1,20 +1,19 @@
 
-Application ID      : 8153f0d4-2c61-49d2-8891-d3491f4c1a94
-Client Secret ID    : 1ac6bc5e-77e3-472b-8915-9e8c6f4a26db
-Client Secret Value : nur8Q~K.eIRyMsmDdnRpX4in11Bi9A72gnQSAawJ
+#region Set Variable for HD현대오일뱅크
 
-Tenant ID           : ad12601a-7684-499a-8214-91f1a1d5ffbb
-Tenant Name         : M365x68919772.onmicrosoft.com
+<#
+Remove-Variable ClientId -Force
+Remove-Variable ClientSecret -Force
+Remove-Variable TenantId -Force
+Remove-Variable TenantName -Force
+#>
 
+New-Variable -Name ClientId     -Value "2e1bbbd9-a60f-4969-99a3-474cd3ba824f"     -Option ReadOnly -Force
+New-Variable -Name ClientSecret -Value "PVl8Q~QteRzRnTGTyYXOsQt7~xzwkQTd7hGMOa3q" -Option ReadOnly -Force
+New-Variable -Name TenantId     -Value "2ff1913c-2506-4fc1-98e5-2e18c7333baa"     -Option ReadOnly -Force
+New-Variable -Name TenantName   -Value "hdom365.onmicrosoft.com"                  -Option ReadOnly -Force
 
-
-Device.Read.All
-Device.ReadWrite.All
-Directory.Read.All
-Directory.ReadWrite.All
-DeviceManagementManagedDevices.Read.All
-DeviceManagementManagedDevices.ReadWrite.All
-User.Read.All
+#endregion Set Variable for HD현대오일뱅크
 
 ## Exchange Mailbox Server:
  
