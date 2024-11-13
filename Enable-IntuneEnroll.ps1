@@ -638,7 +638,7 @@ if ( $IsADJoined ) {
 
         UnRegister-EnableIntuneEnroll
         New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 100 -Message 'END'
-        $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 마무리하기 위하여 Computer Restart가 필요합니다.`n지금 재시작할까요?" -IconType Question -Style YesNo
+        $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 마무리하기 위하여 Computer Restart가 필요합니다.`n모든 열려있는 문서는 저장하고 닫아주세요.`n지금 재시작할까요?" -IconType Question -Style YesNo
         if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
     }
     else {
@@ -652,7 +652,7 @@ if ( $IsADJoined ) {
             New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 4 -Message 'STATUS:AZUREADJOINED'
             New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 5 -Message 'STEP : AzureADJoin : Register-EnableIntuneEnroll'
             Register-EnableIntuneEnroll
-            $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 위하여 Computer Restart가 필요합니다.`n지금 재시작할까요?" -IconType Question -Style YesNo
+            $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 위하여 Computer Restart가 필요합니다.`n모든 열려있는 문서는 저장하고 닫아주세요.`n지금 재시작할까요?" -IconType Question -Style YesNo
             if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
         }
     }
