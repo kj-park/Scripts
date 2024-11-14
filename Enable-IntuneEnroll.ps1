@@ -282,6 +282,31 @@ Add-Type -TypeDefinition $isAADJoinPinvoke -Language CSharp -ErrorAction Silentl
 
 #endregion #region Define Types: MdmInterop, NetInterop
 
+$UnRegScript = [ScriptBlock] {
+    $pinvokeType = @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class MdmUnregister
+{
+    [DllImport("mdmregistration.dll")]
+    public static extern int UnregisterDeviceWithManagement([MarshalAs(UnmanagedType.LPWStr)] string enrollmentId);
+}
+"@
+
+    Add-Type -Language CSharp -TypeDefinition $pinvokeType -ErrorAction SilentlyContinue
+    $result = [MdmUnregister]::UnregisterDeviceWithManagement($enrollmentId);
+    Write-Verbose ("UnregisterDeviceWithManagement returned 0x{0:x8}" -f $result)
+
+    if ($result -eq 0) {
+        return
+    }
+
+    Write-Error "UnregisterDeviceWithManagement API returned unexpected result: 0x{0:x8}" -f $result
+    throw "Could not unregister"
+}
+
 
 #region Define Functions
 
@@ -586,7 +611,7 @@ function Clear-IntuneCertificate {
     $IntuneCerts | Remove-Item -Confirm:$false
 }
 
-function Register-EnableIntuneEnroll {
+function Register-EnableIntuneEnrollTask {
     $Action = New-ScheduledTaskAction -Execute PowerShell.exe -Argument {-ExecutionPolicy Bypass -File C:\Temp\Enable-IntuneEnroll.ps1}
     $Trigger = New-ScheduledTaskTrigger -AtLogOn
     $Settings = New-ScheduledTaskSettingsSet -Priority 4
@@ -595,13 +620,58 @@ function Register-EnableIntuneEnroll {
     Register-ScheduledTask -TaskName 'Enable-IntuneEnroll' -InputObject $Task
 }
 
-function UnRegister-EnableIntuneEnroll {
+function UnRegister-EnableIntuneEnrollTask {
     Get-ScheduledTask -TaskName 'Enable-IntuneEnroll' -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false -ErrorAction SilentlyContinue     
 }
 
-function Get-EnableIntuneEnroll {
+function Get-EnableIntuneEnrollTask {
     $Task = Get-ScheduledTask -TaskName 'Enable-IntuneEnroll' -ErrorAction SilentlyContinue
     if ( $null -ne $Task ) { return $Task }
+}
+
+function UnRegister-CurrentEnrollment {
+    param (
+        [Parameter(Mandatory=$true, Position=0)]
+        [ValidateNotNullOrEmpty()]
+        $EnrollmentId
+    )
+    begin {
+        $BeginScript = "`$EnrollmentId = '$EnrollmentId'"
+        $UnRegScript = [scriptblock] {
+            $pinvokeType = 'using System; using System.Runtime.InteropServices; using System.Text; public static class MdmUnregister { [DllImport("mdmregistration.dll")] public static extern int UnregisterDeviceWithManagement([MarshalAs(UnmanagedType.LPWStr)] string enrollmentId); }'
+            Add-Type -Language CSharp -TypeDefinition $pinvokeType -ErrorAction SilentlyContinue
+            $result = [MdmUnregister]::UnregisterDeviceWithManagement($enrollmentId);
+            Write-Verbose ("UnregisterDeviceWithManagement returned 0x{0:x8}" -f $result)
+            if ($result -eq 0) { return }
+            Write-Error "UnregisterDeviceWithManagement API returned unexpected result: 0x{0:x8}" -f $result
+            throw "Could not unregister"
+        }
+    }
+    process {
+        $runspace = [runspacefactory]::CreateRunspace()
+        try {
+            $runspace.ApartmentState = [System.Threading.ApartmentState]::MTA
+            $runspace.Open()
+            $pipeline = $runspace.CreatePipeline()
+            $pipeline.Commands.AddScript($BeginScript)
+            $pipeline.Commands.AddScript($UnRegScript)
+            $pipeline.Invoke()
+            if ($pipeline.HadErrors -eq $true) {
+                Write-Error "One or more errors occurred"
+                $pipeline.Error.ReadToEnd()
+                $return = $false
+            }
+            else {
+                $pipeline.Output.ReadToEnd()
+                $return = $true
+            }
+        }
+        catch {
+            $return = $false
+        }
+        $runspace.Close()
+        return $return
+    }
 }
 
 #endregion Define Functions
@@ -620,26 +690,29 @@ if ( $IsADJoined ) {
         if ( ! $IsDeviceRegisteredWithManagement ) {
             New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 10 -Message 'TASK : IntuneEnrollment'
 
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 11 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentRegistry'
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 11 -Message 'STEP : IntuneEnrollment : UnRegister-CurrentEnrollment'
+            $CurrentEnrollmentId = $null; $CurrentEnrollmentId = Get-CurrentEnrollmentId
+            if ( ! [String]::IsNullOrEmpty($CurrentEnrollmentId) ) { UnRegister-CurrentEnrollment -EnrollmentId $CurrentEnrollmentId }
+
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 12 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentRegistry'
             Clear-EnrollmentRegistry
 
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 12 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentTasks'
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 13 -Message 'STEP : IntuneEnrollment : Clear-EnrollmentTasks'
             Clear-EnrollmentTasks
             
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 13 -Message 'STEP : IntuneEnrollment : Clear-IntuneCertificate'
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 14 -Message 'STEP : IntuneEnrollment : Clear-IntuneCertificate'
             Clear-IntuneCertificate
 
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 14 -Message "STEP : IntuneEnrollment : Set-EnrollmentRegistry"
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 15 -Message "STEP : IntuneEnrollment : Set-EnrollmentRegistry"
             Set-EnrollmentRegistry
         
-            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 15 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 16 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
             New-EnrollmentScheduledTask -Start
         }
-
-        UnRegister-EnableIntuneEnroll
-        New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 100 -Message 'END'
-        $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 마무리하기 위하여 Computer Restart가 필요합니다.`n모든 열려있는 문서는 저장하고 닫아주세요.`n지금 재시작할까요?" -IconType Question -Style YesNo
-        if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
+        else {
+            UnRegister-EnableIntuneEnrollTask
+            New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 100 -Message 'END'
+        }
     }
     else {
         New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 1 -Message 'TASK:AzureADJoin'
@@ -650,11 +723,10 @@ if ( $IsADJoined ) {
         Set-EnrollmentRegistry        
         if ( (Join-AzureAD) ) {
             New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 4 -Message 'STATUS:AZUREADJOINED'
-            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 5 -Message 'STEP : AzureADJoin : Register-EnableIntuneEnroll'
-            Register-EnableIntuneEnroll
+            New-IntuneEventLog -Source AzureADJoin -EntryType Information -EventId 5 -Message 'STEP : AzureADJoin : Register-EnableIntuneEnrollTask'
+            Register-EnableIntuneEnrollTask
             $IsRestart = Invoke-PopupWindow -Title "Intune Enrollment Task" -Description "Intune Enrollment Task 수행을 위하여 Computer Restart가 필요합니다.`n모든 열려있는 문서는 저장하고 닫아주세요.`n지금 재시작할까요?" -IconType Question -Style YesNo
             if ( $IsRestart -eq 'Yes' ) { Restart-Computer }
         }
     }
 }
-

@@ -1,4 +1,4 @@
-﻿function Register-EnableIntuneEnroll {
+﻿function Register-EnableIntuneEnrollTask {
     $Action = New-ScheduledTaskAction -Execute PowerShell.exe -Argument {-ExecutionPolicy Bypass -File C:\Temp\Enable-IntuneEnroll.ps1}
     $Trigger = New-ScheduledTaskTrigger -AtLogOn
     $Settings = New-ScheduledTaskSettingsSet -Priority 4

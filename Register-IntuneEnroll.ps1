@@ -217,7 +217,6 @@ public static class MdmUnregister
         return
     }
 
-    # See: https://docs.microsoft.com/en-us/windows/win32/mdmreg/mdm-registration-constants for reference
     Write-Error "UnregisterDeviceWithManagement API returned unexpected result: 0x{0:x8}" -f $result
     throw "Could not unregister"
 }
