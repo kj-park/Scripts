@@ -674,6 +674,15 @@ function UnRegister-CurrentEnrollment {
     }
 }
 
+function Invoke-AutoEnrollMDM {
+    param ( $MaxCount = 30 )
+    for ( $i = 1; $i -le $MaxCount; $i++ ) {
+        $AutoEnrollMDM = Start-Process -FilePath C:\Temp\Intune\PSTools\PsExec64.exe -ArgumentList "-accepteula -nobanner -s C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM" -PassThru
+        $Result = $AutoEnrollMDM.ExitCode
+        if ( $Result -eq 0 ) { return } else { Start-Sleep -Seconds 60 }
+    }
+}
+
 #endregion Define Functions
 
 New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 0 -Message 'START'
@@ -708,6 +717,8 @@ if ( $IsADJoined ) {
         
             New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 16 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
             New-EnrollmentScheduledTask -Start
+
+            Invoke-AutoEnrollMDM
         }
         else {
             UnRegister-EnableIntuneEnrollTask
