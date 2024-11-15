@@ -619,8 +619,80 @@ function Test-ADJoin {
     if ( (C:\Windows\system32\dsregcmd.exe /status | Select-String " DomainJoined : " | Select-Object -ExpandProperty Line) -match "YES" ) { return $true } else { return $false }
 }
 
+function Get-DeviceId {
+    $DeviceId = $null
+    $DeviceId = (C:\Windows\system32\dsregcmd.exe /status | Select-String " DeviceId : " | Select-Object -ExpandProperty Line).Trim().Replace("DeviceId :","").Trim()
+    if ( ! [String]::IsNullOrEmpty($DeviceId) ) {
+        return $DeviceId
+    }
+    else {
+        #Write-Host -ForegroundColor Cyan -Object "'dsregcmd.exe /status' 명령을 통해 DeviceId 정보를 확인합니다.`nDeviceId 값이 없는 경우는 Entra Joined 또는 Entra Hybrid Joined 환경으로 정상적으로 Device 정보를 업데이트하지 못해서 정보가 수집되지 않는 경우입니다.`nEntra Joined 또는 Entra Hybrid Joined 환경으로 Device 정보를 업데이트하고 Registration되게 수행이 필요합니다.`n필요한 과정은 아래와 같습니다:`n`n`t- dsregcmd /leave`n`t- 컴퓨터 Restart`n`t- 'psexec -s C:\Windows\System32\dsregcmd.exe /join /debug' 명령으로 다시 join 시도합니다. (system 계정으로 실행합니다.)`n`t- 컴퓨터 Restart`n"
+        return $null
+    }
+}
+
+function Get-DeviceInfo {
+    param (
+        $DeviceId = (Get-DeviceId),
+        $ClientId = $ClientId,
+        $ClientSecret = $ClientSecret,
+        $TenantId = $TenantId
+    )
+    begin {
+        $Body = @{
+            client_id = $ClientId
+            scope = "https://graph.microsoft.com/.default";
+            client_secret = $ClientSecret
+            grant_type = "client_credentials"
+        }
+        try {
+            $TokenRequest = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -ContentType "application/x-www-form-urlencoded" -Body $Body -UseBasicParsing -ErrorAction SilentlyContinue
+            $Token = $TokenRequest.access_token
+            $authHeader = @{"Authorization"="Bearer $token"}
+        }
+        catch { $authHeader = $null }
+    }
+    process {
+        if ( !([String]::IsNullOrEmpty($DeviceId)) -and $null -ne $authHeader ){
+            $QueryUrl = "https://graph.microsoft.com/v1.0/Devices(deviceId='{$DeviceId}')"
+            $Response = $null
+            try {
+                $Response = Invoke-RestMethod -Method Get -Uri $QueryUrl -Headers $authHeader -ErrorAction SilentlyContinue
+                $DeviceInfo = [PSCustomObject]@{
+                    DisplayName          = $Response.displayName
+                    RegistrationDateTime = [Convert]::ToDateTime($Response.registrationDateTime)
+                    TrustType            = $Response.trustType
+                    ManagementType       = $Response.managementType
+                }
+                return $DeviceInfo
+            }
+            catch {
+                return $null
+            }
+        }
+    }
+}
+
+function Invoke-AutoEnrollMDM {
+    param ( $MaxCount = 30 )
+    for ( $i = 1; $i -le $MaxCount; $i++ ) {
+        invoke-Expression "C:\Temp\Intune\PSTools\PsExec64.exe -accepteula -nobanner -s  C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM"
+        if ( $LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -2145910774 ) {
+            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: Success or AlreadyEnrolled" -ForegroundColor Cyan
+            return
+        } 
+        else {
+            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: ox$($LASTEXITCODE.ToString("X8"))" -ForegroundColor Magenta
+            Start-Sleep -Seconds 60
+        }
+    }
+}
+
 #endregion Define Functions
 
+Copy-Item \\Server\Share\Enable-IntuneEnroll.ps1 -Destination C:\Temp -Force
+
+Start-Transcript C:\Temp\Intune\Logs\RunTranscript.txt -Force
 
 New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 0 -Message 'START'
 
@@ -629,7 +701,7 @@ Save-Tools
 
 try { $IsADJoined = [NetInterop]::IsADJoined() } catch { $IsADJoined = Test-ADJoin }
 try { $IsAADJoined = [NetInterop]::IsAADJoined() } catch { $IsAADJoined = Test-AzureADJoin }
-New-Variable -Name IsDeviceRegisteredWithManagement -Value ([MdmInterop]::IsDeviceRegisteredWithManagementq()) -ErrorAction SilentlyContinue
+try { $IsDeviceRegisteredWithManagement = [MdmInterop]::IsDeviceRegisteredWithManagement() } catch { $IsDeviceRegisteredWithManagement = if ( (Get-DeviceInfo).ManagementType -eq "MDM" ) {$true} else {$false} }
 
 if ( $IsADJoined ) {
     if ( $IsAADJoined ) {
@@ -655,19 +727,7 @@ if ( $IsADJoined ) {
             New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 16 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
             New-EnrollmentScheduledTask -Start
 
-            $MaxCount = 30
-            for ( $i = 1; $i -le $MaxCount; $i++ ) {
-                $AutoEnrollMDM = Start-Process -FilePath C:\Temp\Intune\PSTools\PsExec64.exe -ArgumentList "-accepteula -nobanner -s C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM" -PassThru
-                if ( $AutoEnrollMDM.ExitCode -eq 0 ) {
-                    Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x0" -ForegroundColor Cyan
-                    return
-                } 
-                else {
-                    $Result = $AutoEnrollMDM.ExitCode.ToString("x8")
-                    Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x$Result" -ForegroundColor Magenta
-                    Start-Sleep -Seconds 60
-                }
-            }            
+            Invoke-AutoEnrollMDM -MaxCount 30           
         }
         else {
             UnRegister-EnableIntuneEnrollTask
@@ -690,4 +750,6 @@ if ( $IsADJoined ) {
         }
     }
 }
+
+Start-Transcript
 

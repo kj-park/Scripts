@@ -1,15 +1,14 @@
 ﻿function Invoke-AutoEnrollMDM {
     param ( $MaxCount = 30 )
     for ( $i = 1; $i -le $MaxCount; $i++ ) {
-        $AutoEnrollMDM = Start-Process -FilePath C:\Temp\Intune\PSTools\PsExec64.exe -ArgumentList "-accepteula -nobanner -s C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM" -PassThru
-        if ( $AutoEnrollMDM.ExitCode -eq 0 ) {
-            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x0" -ForegroundColor Cyan
+        invoke-Expression "C:\Temp\Intune\PSTools\PsExec64.exe -accepteula -nobanner -s  C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM"
+        if ( $LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -2145910774 ) {
+            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: Success or AlreadyEnrolled" -ForegroundColor Cyan
             return
         } 
         else {
-            $Result = $AutoEnrollMDM.ExitCode.ToString("x8")
-            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x$Result" -ForegroundColor Magenta
+            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: ox$($LASTEXITCODE.ToString("X8"))" -ForegroundColor Magenta
             Start-Sleep -Seconds 60
         }
-    } 
+    }
 }
