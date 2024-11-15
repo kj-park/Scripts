@@ -690,7 +690,7 @@ function Invoke-AutoEnrollMDM {
 
 #endregion Define Functions
 
-Copy-Item \\Server\Share\Enable-IntuneEnroll.ps1 -Destination C:\Temp -Force
+#Copy-Item \\Server\Share\Enable-IntuneEnroll.ps1 -Destination C:\Temp -Force
 
 Start-Transcript C:\Temp\Intune\Logs\RunTranscript.txt -Force
 
@@ -751,5 +751,5 @@ if ( $IsADJoined ) {
     }
 }
 
-Start-Transcript
+Stop-Transcript
 
