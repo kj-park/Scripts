@@ -1,4 +1,72 @@
 
+
+# Entra Hybrid Joined 환경에서 Windows device들의 AzureAD Join 및 Intune Enrollment를 개선하기 위한 Scripts
+
+Entra Hybrid Joined 환경에서 Windows device들의 AzureAD Join 및 Intune Enrollment를 개선하기 위한 Scripts 입니다.
+
+## Script의 전체 Progress Overview
+
+    - STEP 0 : Save-Tools
+
+    - STEP 1 : AzureADJoin 여부를 dsregcmd /status 의 결과에서 DeviceId 값이 있는지로 판단
+               (또는, Get-DeviceInfo 명령으로 RegistrationDataTime 값을 가져오는지 여부로 판단)
+
+        STEP 1-1 : AzureADJoin : NO
+            - dsregcmd /leave
+            - 컴퓨터 Restart
+            - "psexec -s C:\Windows\System32\dsregcmd.exe /join /debug" 명령으로 다시 join 시도합니다. (system 계정으로 실행합니다.)
+            - 컴퓨터 Restart
+
+        STEP 1-2 : AzureADJoin : YES
+            - TASK : Enroll to Intune
+
+    - STEP 2 : Intune Enrollment Task
+
+        STEP 2-1 : Clear-EnrollmentRegistry
+        STEP 2-2 : Clear-CurrentEnrollmentId
+        STEP 2-3 : Clear-EnrollmentTasks
+        STEP 2-4 : Clear-IntuneCertificate
+        STEP 2-5 : New-EnrollmentScheduledTask -Start
+        STEP 2-6 : deviceenroller.exe /c /AutoEnrollMDM
+
+## REF : Utilization Functions
+
+    - Save-Tools
+    - New-IntuneEventLog
+    - Register-ActionTool
+
+## REF : STATUS, TASK, & STEP
+
+    - STATUS:
+        - STATUS:DOMAINJOINED
+        - STATUS:AZUREADJOINED
+        - STATUS:INTUNEENROLLED
+
+    - TASKS & STEPS, STATUS:
+        - TASK:START                : 0   : IntuneEnrollment : START
+        - TASK:AzureADJoin          : 1   : AzureADJoin      : TASK:AzureADJoin
+            - STATUS:DOMAINJOINED   : 2   : AzureADJoin      : STATUS:DOMAINJOINED
+                - STEP:LEAVE        : 3   : AzureADJoin      : STEP:LEAVE
+                - STEP:JOIN         : 4   : AzureADJoin      : STEP:JOIN
+        - TASK:IntuneEnrollment     : 5   : IntuneEnrollment : TASK:IntuneEnrollment
+            - STATUS:AZUREADJOINED  : 6   : IntuneEnrollment : STATUS:AZUREADJOINED
+                - STEP:RESET        : 7   : IntuneEnrollment : STEP:RESET
+            - STATUS:INTUNEENROLLED : 8   : IntuneEnrollment : STATUS:INTUNEENROLLED
+        - TASK:CLEARTASK            : 9   : IntuneEnrollment : TASK:CLEARTASK
+        - STEP: END                 : 100 : IntuneEnrollment : END
+
+# Scheduled Task Configuration
+
+    $TaskName   = "Intune Enrollment Task" 
+    $Trigger    = New-ScheduledTaskTrigger -AtLogon
+    $Action     = New-ScheduledTaskAction -Execute powershell.exe -Argument '-ExecutionPolicy Bypass -File "C:\Temp\Intune\Register-Intune.ps1"'
+    #$Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM"
+
+    $Task = Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action #-Principal $Principal
+
+
+
+
 #region Set Variable for HD현대오일뱅크
 
 <#
@@ -15,42 +83,3 @@ New-Variable -Name TenantName   -Value "hdom365.onmicrosoft.com"                
 
 #endregion Set Variable for HD현대오일뱅크
 
-## Exchange Mailbox Server:
- 
-- C:\Tasks 폴더 생성
- 
-- New-AREs.ps1 script file 복사
- 
-- Edge 서버에 연결하기 위한 Credentail의 password의 SecureString 파일 생성:
-  ConvertTo-SecureString -String ")Okm(Ijn*Uhb" -AsPlainText -Force | ConvertFrom-SecureString | Out-File 'C:\Tasks\EdgeConnectorPwd.txt'
- 
-- Remote PowerShell 연결을 위한 WSMan의 TrustedHosts 설정
-  set-Item WSMan:\localhost\Client\TrustedHosts -Value 'hdo-edge-n01.oilbank.co.kr,hdo-edge-n02.oilbank.co.kr'
- 
-- Exchange 관리자 계정으로 실행되는 Task Schedule 생성
-  powershell.exe -ExecutionPolicy Bypass -File C:\Tasks\New-AREs.ps1
- 
-## Exchange Edge Server:
- 
-- Remote PowerShell enable 
-  Enable-PSRemoting -Force
-  Restart-Service WinRM
- 
-- Windows Firewall에서 Windows Remote Management 항목에 대한 public 프로파일의 RemoteAddress를 local network에서 Any로 변경
-  Set-NetFirewallRule -Name "WINRM-HTTP-In-TCP-PUBLIC" -RemoteAddress Any
- 
-- System의 LocalAccountTokenFilterPolicy 설정 추가
-  $newItemProperty = @{
-    Name = 'LocalAccountTokenFilterPolicy'
-    Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
-    PropertyType = 'DWord'
-    Value = 1
-  }
-  New-ItemProperty @newItemProperty
- 
-- Local User 생성 및 Administrators 그룹에 추가
-  New-LocalUser -Name edgeconnector -Password (ConvertTo-SecureString -String ")Okm(Ijn*Uhb" -AsPlainText -Force) -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword
-  Add-LocalGroupMember -Group Administrators -Member edgeconnector
- 
-- C:\Tasks 폴더 생성 및 공유 폴더 생성, 권한 추가
- 
