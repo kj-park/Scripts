@@ -1,5 +1,9 @@
 ﻿
 
+<#
+PowerShell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process PowerShell.exe -ArgumentList '-ExecutionPolicy Bypass -File ""C:\Temp\Enable-IntuneEnroll.ps1""' -Verb RunAs"
+#>
+
 #region Set Variable for HD현대오일뱅크
 
 <#
