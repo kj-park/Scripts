@@ -1,6 +1,8 @@
 ﻿
 
 <#
+@echo off
+Copy \\server\sharefolder\Intune\Enable-IntuneEnroll.ps1 C:\Temp /Y
 PowerShell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process PowerShell.exe -ArgumentList '-ExecutionPolicy Bypass -File ""C:\Temp\Enable-IntuneEnroll.ps1""' -Verb RunAs"
 #>
 
