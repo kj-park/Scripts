@@ -282,6 +282,9 @@ Add-Type -TypeDefinition $isAADJoinPinvoke -Language CSharp -ErrorAction Silentl
 
 #endregion #region Define Types: MdmInterop, NetInterop
 
+
+#region UnRegScript
+
 $UnRegScript = [ScriptBlock] {
     $pinvokeType = @"
 using System;
@@ -306,6 +309,8 @@ public static class MdmUnregister
     Write-Error "UnregisterDeviceWithManagement API returned unexpected result: 0x{0:x8}" -f $result
     throw "Could not unregister"
 }
+
+#endregion UnRegScript
 
 
 #region Define Functions
@@ -674,23 +679,8 @@ function UnRegister-CurrentEnrollment {
     }
 }
 
-function Invoke-AutoEnrollMDM {
-    param ( $MaxCount = 30 )
-    for ( $i = 1; $i -le $MaxCount; $i++ ) {
-        $AutoEnrollMDM = Start-Process -FilePath C:\Temp\Intune\PSTools\PsExec64.exe -ArgumentList "-accepteula -nobanner -s C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM" -PassThru
-        $Result = $AutoEnrollMDM.ExitCode
-        if ( $Result -eq 0 ) {
-            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: $($Result.ToString('x8'))" -ForegroundColor Cyan
-            return
-        } 
-        else {
-            Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: $($Result.ToString('x8'))" -ForegroundColor Magenta
-            Start-Sleep -Seconds 60
-        }
-    }
-}
-
 #endregion Define Functions
+
 
 New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 0 -Message 'START'
 
@@ -725,7 +715,19 @@ if ( $IsADJoined ) {
             New-IntuneEventLog -Source IntuneEnrollment -EntryType Information -EventId 16 -Message "STEP : IntuneEnrollment : New-EnrollmentScheduledTask"
             New-EnrollmentScheduledTask -Start
 
-            Invoke-AutoEnrollMDM
+            $MaxCount = 30
+            for ( $i = 1; $i -le $MaxCount; $i++ ) {
+                $AutoEnrollMDM = Start-Process -FilePath C:\Temp\Intune\PSTools\PsExec64.exe -ArgumentList "-accepteula -nobanner -s C:\Windows\System32\DeviceEnroller.exe /c /AutoEnrollMDM" -PassThru
+                if ( $AutoEnrollMDM.ExitCode -eq 0 ) {
+                    Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x0" -ForegroundColor Cyan
+                    return
+                } 
+                else {
+                    $Result = $AutoEnrollMDM.ExitCode.ToString("x8")
+                    Write-Host -Object "`t> 'DeviceEnroller.exe /c /AutoEnrollMDM' retruned: 0x$Result" -ForegroundColor Magenta
+                    Start-Sleep -Seconds 60
+                }
+            }            
         }
         else {
             UnRegister-EnableIntuneEnrollTask
