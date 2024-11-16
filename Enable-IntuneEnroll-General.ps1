@@ -6,21 +6,17 @@ Copy \\server\sharefolder\Intune\Enable-IntuneEnroll.ps1 C:\Temp /Y
 PowerShell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process PowerShell.exe -ArgumentList '-ExecutionPolicy Bypass -File ""C:\Temp\Enable-IntuneEnroll.ps1""' -Verb RunAs"
 #>
 
-#region Set Variable for HD현대오일뱅크
+#region Set Variable for the specific Tenant
 
 <#
-Remove-Variable ClientId -Force
-Remove-Variable ClientSecret -Force
 Remove-Variable TenantId -Force
 Remove-Variable TenantName -Force
 #>
 
-New-Variable -Name ClientId     -Value "2e1bbbd9-a60f-4969-99a3-474cd3ba824f"     -Option ReadOnly -Force
-New-Variable -Name ClientSecret -Value "PVl8Q~QteRzRnTGTyYXOsQt7~xzwkQTd7hGMOa3q" -Option ReadOnly -Force
-New-Variable -Name TenantId     -Value "2ff1913c-2506-4fc1-98e5-2e18c7333baa"     -Option ReadOnly -Force
-New-Variable -Name TenantName   -Value "hdom365.onmicrosoft.com"                  -Option ReadOnly -Force
+New-Variable -Name TenantId     -Value "xxxxxxxx-xxxx-xxx-xxxx-xxxxxxxxxxxx"    -Option ReadOnly -Force
+New-Variable -Name TenantName   -Value "xxxx.onmicrosoft.com"                   -Option ReadOnly -Force
 
-#endregion Set Variable for HD현대오일뱅크
+#region Set Variable for the specific Tenant
 
 
 #region Define Types: MdmInterop, NetInterop
@@ -299,7 +295,7 @@ function Save-Tools {
 }
 
 function Set-EnrollmentRegistry {
-    <# TODO: $TenantId = "2ff1913c-2506-4fc1-98e5-2e18c7333baa"; $TenantName = "hdom365.onmicrosoft.com" #>
+    <# TODO: $TenantId = "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"; $TenantName = "XXXX.onmicrosoft.com" #>
     param (
         $TenantId = $TenantId,
         $TenantName = $TenantName
@@ -607,48 +603,6 @@ function Get-DeviceId {
     }
 }
 
-function Get-DeviceInfo {
-    param (
-        $DeviceId = (Get-DeviceId),
-        $ClientId = $ClientId,
-        $ClientSecret = $ClientSecret,
-        $TenantId = $TenantId
-    )
-    begin {
-        $Body = @{
-            client_id = $ClientId
-            scope = "https://graph.microsoft.com/.default";
-            client_secret = $ClientSecret
-            grant_type = "client_credentials"
-        }
-        try {
-            $TokenRequest = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token" -ContentType "application/x-www-form-urlencoded" -Body $Body -UseBasicParsing -ErrorAction SilentlyContinue
-            $Token = $TokenRequest.access_token
-            $authHeader = @{"Authorization"="Bearer $token"}
-        }
-        catch { $authHeader = $null }
-    }
-    process {
-        if ( !([String]::IsNullOrEmpty($DeviceId)) -and $null -ne $authHeader ){
-            $QueryUrl = "https://graph.microsoft.com/v1.0/Devices(deviceId='{$DeviceId}')"
-            $Response = $null
-            try {
-                $Response = Invoke-RestMethod -Method Get -Uri $QueryUrl -Headers $authHeader -ErrorAction SilentlyContinue
-                $DeviceInfo = [PSCustomObject]@{
-                    DisplayName          = $Response.displayName
-                    RegistrationDateTime = [Convert]::ToDateTime($Response.registrationDateTime)
-                    TrustType            = $Response.trustType
-                    ManagementType       = $Response.managementType
-                }
-                return $DeviceInfo
-            }
-            catch {
-                return $null
-            }
-        }
-    }
-}
-
 function Invoke-AutoEnrollMDM {
     param ( $MaxCount = 30 )
     for ( $i = 1; $i -le $MaxCount; $i++ ) {
@@ -669,7 +623,6 @@ function Invoke-AutoEnrollMDM {
 
 #endregion Define Functions
 
-#Copy-Item \\Server\Share\Enable-IntuneEnroll.ps1 -Destination C:\Temp -Force
 
 Start-Transcript C:\Temp\Intune\Logs\RunTranscript.txt -Force
 
